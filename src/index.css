@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@keyframes neonPulse {
+  0%, 100% {
+    text-shadow: 0 0 1px #fff, 0 0 2px #fff, 0 0 4px #0fa,
+                0 0 8px #0fa, 0 0 12px #0fa;
+  }
+  50% {
+    text-shadow: 0 0 0.5px #fff, 0 0 1px #fff, 0 0 2px #0fa,
+                0 0 6px #0fa, 0 0 10px #0fa;
+  }
+}
+
+.neon-text-subtle {
+  animation: neonPulse 3s infinite;
+}
+
+.retro-grid {
+  background-image: linear-gradient(rgba(16, 16, 32, 0.8) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(16, 16, 32, 0.8) 1px, transparent 1px);
+  background-size: 30px 30px;
+  background-position: center center;
+}
+
+.glow-primary {
+  box-shadow: 0 0 10px theme(colors.cyber.primary),
+              0 0 20px theme(colors.cyber.primary);
+}
+
+.glow-accent {
+  box-shadow: 0 0 10px theme(colors.cyber.accent),
+              0 0 20px theme(colors.cyber.accent);
+}
+
+/* Calendar Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 5px theme(colors.cyber.primary), 0 0 10px theme(colors.cyber.primary); }
+  50% { box-shadow: 0 0 10px theme(colors.cyber.primary), 0 0 20px theme(colors.cyber.primary); }
+}
+
+.shadow-neon {
+  animation: glowPulse 2s infinite;
+}
+
+/* Mobile Optimizations */
+@media (max-width: 640px) {
+  .calendar-grid {
+    gap: 0.25rem;
+  }
+  
+  .calendar-day {
+    width: 2rem;
+    height: 2rem;
+    font-size: 0.875rem;
+  }
+  
+  .time-slot {
+    padding: 0.375rem;
+    font-size: 0.75rem;
+  }
+}
+
+/* Ensure elements stay within viewport */
+.calendar-container {
+  max-height: calc(100vh - 4rem);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Scrollbar Styling */
+.calendar-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.calendar-container::-webkit-scrollbar-track {
+  background: theme(colors.cyber.darker);
+}
+
+.calendar-container::-webkit-scrollbar-thumb {
+  background: theme(colors.cyber.primary/30);
+  border-radius: 4px;
+}
+
+.calendar-container::-webkit-scrollbar-thumb:hover {
+  background: theme(colors.cyber.primary/50);
+}
