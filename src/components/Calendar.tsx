@@ -84,33 +84,33 @@ export const Calendar: React.FC<CalendarProps> = ({ dateRange, onDateRangeChange
     let classes = "w-10 h-10 rounded-full flex items-center justify-center text-sm transition-all duration-200 ";
 
     if (!isSameMonth(day, currentMonth)) {
-      classes += "text-cyber-text/30 hover:text-cyber-text/50 ";
+      classes += "text-gray-400 hover:text-gray-300 ";
     } else {
-      classes += "text-cyber-text hover:text-cyber-primary ";
+      classes += "text-white hover:text-purple-300 ";
     }
 
     if (isToday(day)) {
-      classes += "border border-cyber-primary/50 ";
+      classes += "border-2 border-purple-400 ";
     }
 
     if (isParentingDay(day)) {
-      classes += "bg-red-500/20 hover:bg-red-500/30 text-red-500 ";
+      classes += "bg-purple-600/30 hover:bg-purple-600/40 text-purple-300 ";
     } else if (startDate && endDate && day >= startDate && day <= endDate) {
-      classes += "bg-cyber-primary/20 hover:bg-cyber-primary/30 ";
+      classes += "bg-indigo-600/30 hover:bg-indigo-600/40 ";
     }
 
     if (startDate && isSameDay(day, startDate)) {
-      classes += "!bg-cyber-primary text-cyber-black font-medium shadow-neon ";
+      classes += "!bg-indigo-500 text-white font-medium shadow-lg shadow-indigo-500/30 ";
     }
 
     if (endDate && isSameDay(day, endDate)) {
-      classes += "!bg-cyber-accent text-cyber-black font-medium shadow-neon ";
+      classes += "!bg-purple-500 text-white font-medium shadow-lg shadow-purple-500/30 ";
     }
 
     if (!startDate || (startDate && endDate)) {
-      classes += "hover:bg-cyber-primary/10 cursor-pointer ";
+      classes += "hover:bg-indigo-500/20 cursor-pointer ";
     } else {
-      classes += "hover:bg-cyber-accent/10 cursor-pointer ";
+      classes += "hover:bg-purple-500/20 cursor-pointer ";
     }
 
     return classes;
@@ -118,21 +118,21 @@ export const Calendar: React.FC<CalendarProps> = ({ dateRange, onDateRangeChange
 
   return (
     <div className="w-full max-w-md mx-auto">
-      <div className="bg-cyber-darker border-2 border-cyber-primary/30 rounded-2xl p-6 shadow-neon">
+      <div className="bg-gray-900 border-2 border-purple-500/30 rounded-2xl p-6 shadow-xl shadow-purple-500/10">
         {/* Calendar Header */}
         <div className="flex items-center justify-between mb-6">
           <button
             onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-            className="p-2 text-cyber-text hover:text-cyber-primary transition-colors"
+            className="p-2 text-gray-400 hover:text-purple-300 transition-colors"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <h2 className="text-xl font-medium text-cyber-primary">
+          <h2 className="text-xl font-medium text-purple-300">
             {format(currentMonth, 'MMMM yyyy')}
           </h2>
           <button
             onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-            className="p-2 text-cyber-text hover:text-cyber-primary transition-colors"
+            className="p-2 text-gray-400 hover:text-purple-300 transition-colors"
           >
             <ChevronRight className="w-5 h-5" />
           </button>
@@ -141,7 +141,7 @@ export const Calendar: React.FC<CalendarProps> = ({ dateRange, onDateRangeChange
         {/* Weekday Headers */}
         <div className="grid grid-cols-7 mb-4">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-            <div key={day} className="text-center text-sm font-medium text-cyber-text/70">
+            <div key={day} className="text-center text-sm font-medium text-gray-400">
               {day}
             </div>
           ))}
@@ -162,11 +162,11 @@ export const Calendar: React.FC<CalendarProps> = ({ dateRange, onDateRangeChange
 
         {/* Selected Range Display */}
         {(startDate || endDate) && (
-          <div className="mt-6 space-y-2 border-t border-cyber-primary/20 pt-4">
+          <div className="mt-6 space-y-2 border-t border-purple-500/20 pt-4">
             <div className="flex items-center gap-2 text-sm">
-              <CalendarIcon className="w-4 h-4 text-cyber-primary" />
-              <span className="text-cyber-text">Selected:</span>
-              <span className="text-cyber-primary">
+              <CalendarIcon className="w-4 h-4 text-purple-300" />
+              <span className="text-gray-400">Selected:</span>
+              <span className="text-purple-300">
                 {startDate ? format(startDate, 'MMM d') : '...'}
                 {' → '}
                 {endDate ? format(endDate, 'MMM d') : '...'}
