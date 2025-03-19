@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Calendar } from './components/Calendar';
 import { AdminPanel } from './components/AdminPanel';
 import { AdminLogin } from './components/AdminLogin';
-import { CryptoTicker } from './components/CryptoTicker';
 import { ParentingSchedule, AdminState } from './types';
 import { Check, X, Settings, LogOut } from 'lucide-react';
 import { findOverlappingSchedules } from './utils/dateUtils';
@@ -162,7 +161,6 @@ function App() {
 
   return (
     <div className="min-h-screen bg-cyber-black retro-grid">
-      <CryptoTicker />
       {/* Navigation Bar */}
       <nav className="bg-cyber-darker border-b border-cyber-primary/30">
         <div className="max-w-7xl mx-auto px-6 py-4">
