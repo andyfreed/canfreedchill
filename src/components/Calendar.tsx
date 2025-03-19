@@ -11,7 +11,8 @@ import {
   isSameDay, 
   isToday,
   startOfWeek,
-  endOfWeek
+  endOfWeek,
+  isWithinInterval
 } from 'date-fns';
 import { ParentingSchedule } from '../types';
 
@@ -49,6 +50,36 @@ export const Calendar: React.FC<CalendarProps> = ({ dateRange, onDateRangeChange
     }
   };
 
+  const isParentingDay = (day: Date): boolean => {
+    return schedule.some(schedule => {
+      if (schedule.type === 'parenting') {
+        if (schedule.repeat === 'none') {
+          return isWithinInterval(day, { start: schedule.startDate, end: schedule.endDate });
+        }
+        // Handle repeating schedules
+        const start = new Date(schedule.startDate);
+        const end = schedule.repeatUntil ? new Date(schedule.repeatUntil) : new Date(schedule.endDate);
+        
+        if (day < start || day > end) return false;
+        
+        switch (schedule.repeat) {
+          case 'weekly':
+            return day.getDay() === start.getDay();
+          case 'biweekly':
+            const weeksDiff = Math.floor((day.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000));
+            return weeksDiff % 2 === 0 && day.getDay() === start.getDay();
+          case 'monthly':
+            return day.getDate() === start.getDate();
+          case 'yearly':
+            return day.getMonth() === start.getMonth() && day.getDate() === start.getDate();
+          default:
+            return false;
+        }
+      }
+      return false;
+    });
+  };
+
   const getDayClasses = (day: Date) => {
     let classes = "w-10 h-10 rounded-full flex items-center justify-center text-sm transition-all duration-200 ";
 
@@ -62,7 +93,9 @@ export const Calendar: React.FC<CalendarProps> = ({ dateRange, onDateRangeChange
       classes += "border border-cyber-primary/50 ";
     }
 
-    if (startDate && endDate && day >= startDate && day <= endDate) {
+    if (isParentingDay(day)) {
+      classes += "bg-red-500/20 hover:bg-red-500/30 text-red-500 ";
+    } else if (startDate && endDate && day >= startDate && day <= endDate) {
       classes += "bg-cyber-primary/20 hover:bg-cyber-primary/30 ";
     }
 
