@@ -8,7 +8,8 @@ import {
   isWithinInterval, 
   addYears as addYearsDate,
   areIntervalsOverlapping,
-  isEqual
+  isEqual,
+  isSameDay
 } from 'date-fns';
 
 export function getRepeatingDates(schedule: ParentingSchedule, targetDate: Date): Date[] {
@@ -151,4 +152,152 @@ export function findOverlappingSchedules(
       // Remove duplicates
       return index === 0 || !isEqual(period.startDate, self[index - 1].startDate);
     });
+}
+
+export type DayAvailability = {
+  morning?: boolean;
+  afternoon?: boolean;
+  evening?: boolean;
+  isFullyAvailable: boolean;
+};
+
+export interface CalendarDay {
+  date: Date;
+  dayOfMonth: number;
+  isCurrentMonth: boolean;
+  isToday: boolean;
+  availability: DayAvailability;
+  isSelected?: boolean;
+}
+
+export interface CalendarMonth {
+  year: number;
+  month: number; // 0-11
+  weeks: CalendarDay[][];
+}
+
+export function generateCalendarMonth(year: number, month: number): CalendarMonth {
+  const firstDayOfMonth = new Date(year, month, 1);
+  const lastDayOfMonth = new Date(year, month + 1, 0);
+  const startingDayOfWeek = firstDayOfMonth.getDay();
+  const daysInMonth = lastDayOfMonth.getDate();
+  
+  // Get the last day of previous month to fill in the first week
+  const daysInPreviousMonth = new Date(year, month, 0).getDate();
+  
+  const today = new Date();
+  const weeks: CalendarDay[][] = [];
+  let currentWeek: CalendarDay[] = [];
+  
+  // Fill in days from previous month
+  for (let i = 0; i < startingDayOfWeek; i++) {
+    const date = new Date(year, month - 1, daysInPreviousMonth - startingDayOfWeek + i + 1);
+    currentWeek.push({
+      date,
+      dayOfMonth: date.getDate(),
+      isCurrentMonth: false,
+      isToday: isSameDay(date, today),
+      availability: {
+        morning: true,
+        afternoon: true,
+        evening: true,
+        isFullyAvailable: true
+      }
+    });
+  }
+  
+  // Fill in days of current month
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(year, month, day);
+    currentWeek.push({
+      date,
+      dayOfMonth: day,
+      isCurrentMonth: true,
+      isToday: isSameDay(date, today),
+      availability: {
+        morning: true,
+        afternoon: true,
+        evening: true,
+        isFullyAvailable: true
+      }
+    });
+    
+    if (currentWeek.length === 7) {
+      weeks.push(currentWeek);
+      currentWeek = [];
+    }
+  }
+  
+  // Fill in days from next month
+  if (currentWeek.length > 0) {
+    const daysNeeded = 7 - currentWeek.length;
+    for (let day = 1; day <= daysNeeded; day++) {
+      const date = new Date(year, month + 1, day);
+      currentWeek.push({
+        date,
+        dayOfMonth: day,
+        isCurrentMonth: false,
+        isToday: isSameDay(date, today),
+        availability: {
+          morning: true,
+          afternoon: true,
+          evening: true,
+          isFullyAvailable: true
+        }
+      });
+    }
+    weeks.push(currentWeek);
+  }
+  
+  return {
+    year,
+    month,
+    weeks
+  };
+}
+
+export function getMonthName(month: number): string {
+  return new Date(2000, month, 1).toLocaleString('default', { month: 'long' });
+}
+
+export function getDayAvailability(date: Date, schedules: ParentingSchedule[]): DayAvailability {
+  const morning = !findOverlappingSchedules(
+    new Date(date.setHours(0, 0, 0, 0)),
+    new Date(date.setHours(8, 0, 0, 0)),
+    schedules
+  ).length;
+
+  const afternoon = !findOverlappingSchedules(
+    new Date(date.setHours(8, 0, 0, 0)),
+    new Date(date.setHours(16, 0, 0, 0)),
+    schedules
+  ).length;
+
+  const evening = !findOverlappingSchedules(
+    new Date(date.setHours(16, 0, 0, 0)),
+    new Date(date.setHours(23, 59, 59, 999)),
+    schedules
+  ).length;
+
+  return {
+    morning,
+    afternoon,
+    evening,
+    isFullyAvailable: morning && afternoon && evening
+  };
+}
+
+export function updateCalendarAvailability(
+  calendar: CalendarMonth,
+  schedules: ParentingSchedule[]
+): CalendarMonth {
+  return {
+    ...calendar,
+    weeks: calendar.weeks.map(week =>
+      week.map(day => ({
+        ...day,
+        availability: getDayAvailability(day.date, schedules)
+      }))
+    )
+  };
 }

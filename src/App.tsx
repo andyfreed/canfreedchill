@@ -2,9 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Calendar } from './components/Calendar';
 import { AdminPanel } from './components/AdminPanel';
 import { AdminLogin } from './components/AdminLogin';
-import { ParentingSchedule, AdminState } from './types';
-import { Check, X, Settings, LogOut } from 'lucide-react';
-import { findOverlappingSchedules } from './utils/dateUtils';
+import { ParentingSchedule, AdminState, RepeatFrequency } from './types';
+import { Settings, LogOut } from 'lucide-react';
 import { format } from 'date-fns';
 import { supabase } from './lib/supabase';
 
@@ -16,7 +15,6 @@ function App() {
   });
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
-  const [showAvailability, setShowAvailability] = useState(false);
   const [parentingSchedule, setParentingSchedule] = useState<ParentingSchedule[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -82,12 +80,6 @@ function App() {
     }
   };
 
-  const isDateRangeAvailable = (startDate: Date | null, endDate: Date | null): boolean => {
-    if (!startDate || !endDate) return false;
-    const overlappingPeriods = findOverlappingSchedules(startDate, endDate, parentingSchedule);
-    return overlappingPeriods.length === 0;
-  };
-
   const handleLogin = async (password: string) => {
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -121,35 +113,6 @@ function App() {
   const toggleView = () => {
     setShowAdminPanel(!showAdminPanel);
   };
-
-  const logVisitorAction = async () => {
-    try {
-      await supabase.from('visitor_logs').insert([{
-        ip_address: 'anonymous',
-        action: 'check_availability',
-        dates_checked: {
-          start: dateRange[0]?.toISOString(),
-          end: dateRange[1]?.toISOString()
-        }
-      }]);
-    } catch (error) {
-      console.error('Error logging visitor:', error);
-    }
-  };
-
-  const checkAvailability = async () => {
-    if (dateRange[0] && dateRange[1]) {
-      setShowAvailability(true);
-      await logVisitorAction();
-    }
-  };
-
-  const resetSelection = () => {
-    setDateRange([null, null]);
-    setShowAvailability(false);
-  };
-
-  const areDatesSelected = dateRange[0] && dateRange[1];
 
   if (isLoading) {
     return (
@@ -229,73 +192,10 @@ function App() {
               <div className="bg-cyber-dark p-8 rounded-2xl border border-cyber-primary/20">
                 <Calendar
                   dateRange={dateRange}
-                  onDateRangeChange={(dates) => {
-                    setDateRange(dates);
-                    setShowAvailability(false);
-                  }}
+                  onDateRangeChange={setDateRange}
                   schedule={parentingSchedule}
                 />
-                
-                <div className="mt-8 flex justify-center gap-4">
-                  <button
-                    onClick={checkAvailability}
-                    disabled={!areDatesSelected}
-                    className={`flex items-center gap-2 px-8 py-4 rounded-xl transition-all duration-300 text-lg font-bold uppercase tracking-wider ${
-                      areDatesSelected
-                        ? 'bg-cyber-primary text-cyber-black hover:shadow-neon'
-                        : 'bg-cyber-primary/20 text-cyber-text/50 cursor-not-allowed'
-                    }`}
-                  >
-                    Can Freed Chill?
-                  </button>
-                  {showAvailability && (
-                    <button
-                      onClick={resetSelection}
-                      className="flex items-center gap-2 px-6 py-3 border border-cyber-primary text-cyber-primary rounded-xl hover:bg-cyber-primary/10 transition-colors"
-                    >
-                      Pick Different Dates
-                    </button>
-                  )}
-                </div>
               </div>
-
-              {showAvailability && dateRange[0] && dateRange[1] && (
-                <div className="mt-6 p-6 rounded-2xl bg-cyber-darker border border-cyber-primary/30 shadow-neon">
-                  <h2 className="text-xl font-semibold mb-4 text-cyber-text">Availability Status</h2>
-                  <div className="flex items-center gap-3">
-                    {isDateRangeAvailable(dateRange[0], dateRange[1]) ? (
-                      <div className="flex items-center gap-3 bg-cyber-primary/10 p-4 rounded-xl w-full border border-cyber-primary">
-                        <Check className="w-8 h-8 text-cyber-primary" />
-                        <div>
-                          <span className="text-cyber-primary font-medium">Yes, let's hang out!</span>
-                          <p className="text-cyber-text text-sm mt-1">
-                            Available from {format(dateRange[0], 'MMMM d, h:mm aa')} to {format(dateRange[1], 'MMMM d, h:mm aa')}
-                          </p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col gap-3 bg-cyber-secondary/10 p-4 rounded-xl w-full border border-cyber-secondary">
-                        <div className="flex items-center gap-3">
-                          <X className="w-8 h-8 text-cyber-secondary" />
-                          <div>
-                            <span className="text-cyber-secondary font-medium">Not available</span>
-                            <p className="text-cyber-text text-sm mt-1">
-                              Freed has the kids during these times:
-                            </p>
-                          </div>
-                        </div>
-                        <div className="ml-11 space-y-2">
-                          {findOverlappingSchedules(dateRange[0], dateRange[1], parentingSchedule).map((period, index) => (
-                            <p key={index} className="text-cyber-text text-sm">
-                              {format(period.startDate, 'MMMM d, h:mm aa')} to {format(period.endDate, 'MMMM d, h:mm aa')}
-                            </p>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         )}
