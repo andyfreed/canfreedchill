@@ -1,15 +1,22 @@
-export type RepeatFrequency = 'none' | 'weekly' | 'biweekly' | 'monthly' | 'yearly';
+export type RepeatFrequency = 'NONE' | 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 
 export interface ParentingSchedule {
   id: string;
   startDate: Date;
   endDate: Date;
-  type: 'parenting' | 'free';
-  repeat: RepeatFrequency;
-  repeatUntil?: Date;
+  repeatFrequency: RepeatFrequency;
+  notes?: string;
+}
+
+export interface CountdownEvent {
+  id: string;
+  title: string;
+  startDate: Date;
+  endDate: Date;
+  color: string;
 }
 
 export interface AdminState {
-  isAdmin: boolean;
-  password: string;
+  isLoggedIn: boolean;
+  isEditing: boolean;
 }

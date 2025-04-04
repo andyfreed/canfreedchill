@@ -97,62 +97,6 @@ export const Calendar: React.FC<CalendarProps> = ({ dateRange, onDateRangeChange
     setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1));
   };
 
-  const getDateRangeInfo = () => {
-    if (!startDate || !endDate) return null;
-
-    const selectedDays = calendarMonth.weeks.flat().filter(day => 
-      day.date >= startDate && 
-      day.date <= endDate
-    );
-
-    const daysWithRestrictions = selectedDays.filter(day => 
-      !day.availability.isFullyAvailable
-    );
-
-    if (daysWithRestrictions.length === 0) {
-      return "Freed is available during this period";
-    }
-
-    // Calculate percentage of time with kids
-    let totalTimeSlots = selectedDays.length * 3; // 3 time slots per day (morning, afternoon, evening)
-    let restrictedTimeSlots = 0;
-
-    daysWithRestrictions.forEach(day => {
-      const { morning, afternoon, evening } = day.availability;
-      if (!morning) restrictedTimeSlots++;
-      if (!afternoon) restrictedTimeSlots++;
-      if (!evening) restrictedTimeSlots++;
-    });
-
-    const restrictionPercentage = (restrictedTimeSlots / totalTimeSlots) * 100;
-
-    const restrictionInfo = daysWithRestrictions.map(day => {
-      const { morning, afternoon, evening } = day.availability;
-      
-      if (!morning && !afternoon && !evening) {
-        return `${format(day.date, 'EEEE')} all day`;
-      }
-      
-      if (!morning && afternoon && evening) {
-        return `${format(day.date, 'EEEE')} in the morning`;
-      }
-      
-      if (morning && !afternoon && evening) {
-        return `${format(day.date, 'EEEE')} in the afternoon`;
-      }
-      
-      if (morning && afternoon && !evening) {
-        return `${format(day.date, 'EEEE')} in the evening`;
-      }
-      
-      return `${format(day.date, 'EEEE')} partially`;
-    }).join(', ');
-
-    return restrictionPercentage < 25
-      ? `Freed is mostly available but has the kids on ${restrictionInfo}`
-      : `Freed has the kids on ${restrictionInfo}`;
-  };
-
   return (
     <div className="w-full max-w-3xl mx-auto">
       <div className="bg-gray-900 border-2 border-purple-500/30 rounded-2xl p-6 shadow-xl shadow-purple-500/10">
@@ -210,18 +154,6 @@ export const Calendar: React.FC<CalendarProps> = ({ dateRange, onDateRangeChange
             );
           })}
         </div>
-
-        {/* Selected Range Info */}
-        {startDate && endDate && (
-          <div className="mt-6 space-y-2 border-t border-purple-500/20 pt-4">
-            <div className="text-sm text-purple-300">
-              {format(startDate, 'MMM d')} → {format(endDate, 'MMM d')}
-            </div>
-            <div className="text-sm text-purple-300/70">
-              {getDateRangeInfo()}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

@@ -1,10 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Simple mock client that does nothing
+const mockClient = {
+  from: () => ({
+    select: () => ({ data: null, error: null }),
+    insert: () => ({ data: null, error: null }),
+    update: () => ({ data: null, error: null }),
+    delete: () => ({ data: null, error: null })
+  }),
+  auth: {
+    getSession: () => ({ data: { session: null }, error: null }),
+    signOut: () => ({ error: null })
+  }
+};
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables');
-}
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Export the mock client
+export const supabase = mockClient;

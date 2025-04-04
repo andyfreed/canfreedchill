@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Plus, Trash2, Lock, RefreshCw, Infinity, Clock } from 'lucide-react';
-import { ParentingSchedule, RepeatFrequency } from '../types';
+import { ParentingSchedule, RepeatFrequency, CountdownEvent } from '../types';
 import { format } from 'date-fns';
 import { supabase } from '../lib/supabase';
 import { VisitorLog } from './VisitorLog';
@@ -8,48 +8,37 @@ import { Calendar } from './Calendar';
 
 interface AdminPanelProps {
   schedule: ParentingSchedule[];
-  onScheduleUpdate: (newSchedule: ParentingSchedule[]) => void;
+  onScheduleUpdate: () => void;
   onLogout: () => void;
+  isOpen: boolean;
+  onClose: () => void;
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
   schedule,
   onScheduleUpdate,
   onLogout,
+  isOpen,
+  onClose,
 }) => {
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>([null, null]);
   const [startTime, setStartTime] = useState<string>("09:00");
   const [endTime, setEndTime] = useState<string>("17:00");
-  const [repeatFrequency, setRepeatFrequency] = useState<RepeatFrequency>('none');
+  const [repeatFrequency, setRepeatFrequency] = useState<RepeatFrequency>('NONE');
   const [repeatUntil, setRepeatUntil] = useState<Date | null>(null);
   const [isIndefinite, setIsIndefinite] = useState(false);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [notes, setNotes] = useState('');
+  
+  // Event state
+  const [eventTitle, setEventTitle] = useState('');
+  const [eventStartDate, setEventStartDate] = useState('');
+  const [eventEndDate, setEventEndDate] = useState('');
+  const [eventColor, setEventColor] = useState('#FF4081');
+  const [activeTab, setActiveTab] = useState<'schedule' | 'events'>('schedule');
 
-  useEffect(() => {
-    loadSchedules();
-  }, []);
-
-  const loadSchedules = async () => {
-    const { data: schedules, error } = await supabase
-      .from('schedules')
-      .select('*')
-      .order('start_date', { ascending: true });
-
-    if (error) {
-      console.error('Error loading schedules:', error);
-      return;
-    }
-
-    const parsedSchedules: ParentingSchedule[] = schedules.map(schedule => ({
-      id: schedule.id,
-      startDate: new Date(schedule.start_date),
-      endDate: new Date(schedule.end_date),
-      type: schedule.type as 'parenting' | 'free',
-      repeat: schedule.repeat as RepeatFrequency,
-      ...(schedule.repeat_until && { repeatUntil: new Date(schedule.repeat_until) }),
-    }));
-
-    onScheduleUpdate(parsedSchedules);
-  };
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const addSchedule = async () => {
     if (dateRange[0] && dateRange[1]) {
@@ -64,23 +53,22 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       const [startHours, startMinutes] = startTime.split(':').map(Number);
       const [endHours, endMinutes] = endTime.split(':').map(Number);
 
-      const startDate = new Date(dateRange[0]);
-      startDate.setHours(startHours, startMinutes, 0, 0);
+      const startDateObj = new Date(dateRange[0]);
+      startDateObj.setHours(startHours, startMinutes, 0, 0);
 
-      const endDate = new Date(dateRange[1]);
-      endDate.setHours(endHours, endMinutes, 0, 0);
+      const endDateObj = new Date(dateRange[1]);
+      endDateObj.setHours(endHours, endMinutes, 0, 0);
 
       const newScheduleData = {
-        start_date: startDate.toISOString(),
-        end_date: endDate.toISOString(),
-        type: 'parenting',
-        repeat: repeatFrequency,
-        repeat_until: repeatFrequency !== 'none' && !isIndefinite ? repeatUntil?.toISOString() : null,
-        user_id: user.id
+        startDate: startDateObj.toISOString(),
+        endDate: endDateObj.toISOString(),
+        repeatFrequency,
+        repeatUntil: repeatFrequency !== 'NONE' && !isIndefinite ? repeatUntil?.toISOString() : null,
+        notes
       };
 
       const { error } = await supabase
-        .from('schedules')
+        .from('parenting_schedules')
         .insert([newScheduleData]);
 
       if (error) {
@@ -88,20 +76,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         return;
       }
 
-      await loadSchedules();
+      // Trigger parent's update function
+      onScheduleUpdate();
       
+      // Reset form
       setDateRange([null, null]);
       setStartTime("09:00");
       setEndTime("17:00");
-      setRepeatFrequency('none');
+      setRepeatFrequency('NONE');
       setRepeatUntil(null);
       setIsIndefinite(false);
+      setNotes('');
     }
   };
 
   const removeSchedule = async (id: string) => {
     const { error } = await supabase
-      .from('schedules')
+      .from('parenting_schedules')
       .delete()
       .eq('id', id);
 
@@ -110,180 +101,281 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       return;
     }
 
-    await loadSchedules();
+    // Trigger parent's update function
+    onScheduleUpdate();
   };
 
+  const handleScheduleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        console.error('No authenticated user found');
+        return;
+      }
+
+      // Set the times on the dates
+      const [startHours, startMinutes] = startTime.split(':').map(Number);
+      const [endHours, endMinutes] = endTime.split(':').map(Number);
+
+      const startDateObj = new Date(startDate);
+      startDateObj.setHours(startHours, startMinutes, 0, 0);
+
+      const endDateObj = new Date(endDate);
+      endDateObj.setHours(endHours, endMinutes, 0, 0);
+
+      const scheduleData = {
+        startDate: startDateObj.toISOString(),
+        endDate: endDateObj.toISOString(),
+        repeatFrequency,
+        repeatUntil: repeatFrequency !== 'NONE' && !isIndefinite ? repeatUntil?.toISOString() : null,
+        notes
+      };
+
+      console.log('Submitting schedule:', scheduleData);
+
+      const { error } = await supabase
+        .from('parenting_schedules')
+        .insert([scheduleData])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error inserting schedule:', error);
+        return;
+      }
+
+      // Trigger parent's update function
+      onScheduleUpdate();
+
+      // Reset form
+      setStartDate('');
+      setEndDate('');
+      setStartTime("09:00");
+      setEndTime("17:00");
+      setRepeatFrequency('NONE');
+      setRepeatUntil(null);
+      setIsIndefinite(false);
+      setNotes('');
+    } catch (err) {
+      console.error('Error in handleScheduleSubmit:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleEventSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    try {
+      const event = {
+        title: eventTitle,
+        start_date: eventStartDate, // Already in YYYY-MM-DD format
+        end_date: eventEndDate,     // Already in YYYY-MM-DD format
+        color: eventColor
+      };
+
+      console.log('Submitting event:', event);
+
+      const { data, error } = await supabase
+        .from('countdown_events')
+        .insert([event])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error inserting event:', error.message);
+        return;
+      }
+
+      console.log('Event added successfully:', data);
+
+      // Trigger parent's update function to refresh events
+      onScheduleUpdate();
+
+      // Reset form
+      setEventTitle('');
+      setEventStartDate('');
+      setEventEndDate('');
+      setEventColor('#FF4081');
+    } catch (err) {
+      console.error('Error in handleEventSubmit:', err);
+    }
+  };
+
+  if (!isOpen) return null;
+
   return (
-    <div className="space-y-6">
-      <div className="bg-cyber-darker rounded-3xl shadow-2xl p-8 border border-cyber-primary/30">
-        <div className="flex items-center justify-between mb-8">
-          <h2 className="text-2xl font-bold text-cyber-primary">Admin Panel</h2>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-cyber-dark p-6 rounded-2xl border border-cyber-primary/20 w-full max-w-md">
+        <div className="flex justify-between mb-6">
+          <h2 className="text-xl font-medium text-purple-300">Admin Panel</h2>
+          <button onClick={onClose} className="text-cyber-text/50 hover:text-cyber-text">✕</button>
+        </div>
+
+        <div className="flex gap-2 mb-6">
           <button
-            onClick={onLogout}
-            className="flex items-center gap-2 px-4 py-2 text-cyber-text hover:text-cyber-primary transition-colors"
+            className={`px-4 py-2 rounded ${activeTab === 'schedule' ? 'bg-cyber-primary text-black' : 'text-cyber-text/70'}`}
+            onClick={() => setActiveTab('schedule')}
           >
-            <Lock className="w-4 h-4" />
-            Logout
+            Schedule
+          </button>
+          <button
+            className={`px-4 py-2 rounded ${activeTab === 'events' ? 'bg-cyber-primary text-black' : 'text-cyber-text/70'}`}
+            onClick={() => setActiveTab('events')}
+          >
+            Events
           </button>
         </div>
 
-        <div className="space-y-8">
-          <div>
-            <h3 className="text-lg font-semibold text-cyber-text mb-4">Add New Schedule</h3>
-            
-            {/* Calendar */}
-            <Calendar
-              dateRange={dateRange}
-              onDateRangeChange={setDateRange}
-              schedule={schedule}
-            />
-
-            {/* Time Selection */}
-            {dateRange[0] && dateRange[1] && (
-              <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4 bg-cyber-dark p-6 rounded-xl border border-cyber-primary/20">
-                <div className="space-y-2">
-                  <label className="block text-sm text-cyber-text">Start Time</label>
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-cyber-primary" />
-                    <input
-                      type="time"
-                      value={startTime}
-                      onChange={(e) => setStartTime(e.target.value)}
-                      className="bg-cyber-darker border border-cyber-primary/30 rounded-lg px-3 py-2 text-cyber-text focus:border-cyber-primary focus:outline-none"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="block text-sm text-cyber-text">End Time</label>
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-cyber-primary" />
-                    <input
-                      type="time"
-                      value={endTime}
-                      onChange={(e) => setEndTime(e.target.value)}
-                      className="bg-cyber-darker border border-cyber-primary/30 rounded-lg px-3 py-2 text-cyber-text focus:border-cyber-primary focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Repeat Options */}
-            {dateRange[0] && dateRange[1] && (
-              <div className="mt-6 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm text-cyber-text mb-2">Repeat</label>
-                    <select
-                      value={repeatFrequency}
-                      onChange={(e) => {
-                        setRepeatFrequency(e.target.value as RepeatFrequency);
-                        if (e.target.value === 'none') {
-                          setIsIndefinite(false);
-                        }
-                      }}
-                      className="w-full px-4 py-2 bg-cyber-darker border border-cyber-primary/30 rounded-lg text-cyber-text focus:border-cyber-primary focus:outline-none"
-                    >
-                      <option value="none">No Repeat</option>
-                      <option value="weekly">Weekly</option>
-                      <option value="biweekly">Bi-weekly</option>
-                      <option value="monthly">Monthly</option>
-                      <option value="yearly">Yearly</option>
-                    </select>
-                  </div>
-                  {repeatFrequency !== 'none' && !isIndefinite && (
-                    <div>
-                      <label className="block text-sm text-cyber-text mb-2">Repeat Until</label>
-                      <input
-                        type="date"
-                        value={repeatUntil?.toISOString().split('T')[0] || ''}
-                        onChange={(e) => setRepeatUntil(new Date(e.target.value))}
-                        min={dateRange[1]?.toISOString().split('T')[0]}
-                        className="w-full px-4 py-2 bg-cyber-darker border border-cyber-primary/30 rounded-lg text-cyber-text focus:border-cyber-primary focus:outline-none"
-                      />
-                    </div>
-                  )}
-                </div>
-
-                {repeatFrequency !== 'none' && (
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="indefinite"
-                      checked={isIndefinite}
-                      onChange={(e) => {
-                        setIsIndefinite(e.target.checked);
-                        if (e.target.checked) {
-                          setRepeatUntil(null);
-                        }
-                      }}
-                      className="rounded border-cyber-primary/30 text-cyber-primary focus:ring-cyber-primary bg-cyber-darker"
-                    />
-                    <label htmlFor="indefinite" className="text-sm text-cyber-text flex items-center gap-1">
-                      Repeat indefinitely <Infinity className="w-4 h-4 text-cyber-primary" />
-                    </label>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="mt-6">
-              <button
-                onClick={addSchedule}
-                disabled={!dateRange[0] || !dateRange[1] || (repeatFrequency !== 'none' && !isIndefinite && !repeatUntil)}
-                className="flex items-center gap-2 px-6 py-3 bg-cyber-primary text-cyber-black rounded-xl hover:shadow-neon disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 font-bold uppercase tracking-wider"
+        {activeTab === 'schedule' ? (
+          <form onSubmit={handleScheduleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm text-cyber-text/70 mb-1">Start Date</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full bg-cyber-dark-secondary text-cyber-text border border-cyber-primary/20 rounded px-3 py-2"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-cyber-text/70 mb-1">Start Time</label>
+              <input
+                type="time"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                className="w-full bg-cyber-dark-secondary text-cyber-text border border-cyber-primary/20 rounded px-3 py-2"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-cyber-text/70 mb-1">End Date</label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full bg-cyber-dark-secondary text-cyber-text border border-cyber-primary/20 rounded px-3 py-2"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-cyber-text/70 mb-1">End Time</label>
+              <input
+                type="time"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+                className="w-full bg-cyber-dark-secondary text-cyber-text border border-cyber-primary/20 rounded px-3 py-2"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-cyber-text/70 mb-1">Repeat</label>
+              <select
+                value={repeatFrequency}
+                onChange={(e) => setRepeatFrequency(e.target.value as RepeatFrequency)}
+                className="w-full bg-cyber-dark-secondary text-cyber-text border border-cyber-primary/20 rounded px-3 py-2"
               >
-                <Plus className="w-4 h-4" />
-                Add Schedule
-              </button>
+                <option value="NONE">No repeat</option>
+                <option value="WEEKLY">Weekly</option>
+                <option value="BIWEEKLY">Biweekly</option>
+                <option value="MONTHLY">Monthly</option>
+                <option value="YEARLY">Yearly</option>
+              </select>
             </div>
-          </div>
-
-          {/* Current Schedule */}
-          <div className="mt-8">
-            <h3 className="text-lg font-semibold text-cyber-text mb-4">Current Schedule</h3>
-            <div className="space-y-3">
-              {schedule.map((period) => (
-                <div
-                  key={period.id}
-                  className="flex items-center justify-between p-4 bg-cyber-dark rounded-xl border border-cyber-primary/20"
-                >
-                  <div className="flex-1">
-                    <p className="text-cyber-text font-medium">
-                      {format(period.startDate, 'MMMM d, yyyy h:mm aa')} -{' '}
-                      {format(period.endDate, 'MMMM d, yyyy h:mm aa')}
-                    </p>
-                    {period.repeat !== 'none' && (
-                      <p className="text-sm text-cyber-text/70 mt-1 flex items-center gap-1">
-                        <RefreshCw className="w-3 h-3" />
-                        Repeats {period.repeat}
-                        {period.repeatUntil ? (
-                          ` until ${format(period.repeatUntil, 'MMMM d, yyyy')}`
-                        ) : (
-                          <span className="flex items-center gap-1">
-                            indefinitely <Infinity className="w-3 h-3" />
-                          </span>
-                        )}
-                      </p>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => removeSchedule(period.id)}
-                    className="p-2 text-cyber-secondary hover:text-cyber-secondary/70 transition-colors"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
-                </div>
-              ))}
-              {schedule.length === 0 && (
-                <p className="text-cyber-text/50 text-center py-4">No schedules added yet</p>
-              )}
+            {repeatFrequency !== 'NONE' && !isIndefinite && (
+              <div>
+                <label className="block text-sm text-cyber-text/70 mb-1">Repeat Until</label>
+                <input
+                  type="date"
+                  value={repeatUntil ? format(repeatUntil, 'yyyy-MM-dd') : ''}
+                  onChange={(e) => setRepeatUntil(e.target.value ? new Date(e.target.value) : null)}
+                  className="w-full bg-cyber-dark-secondary text-cyber-text border border-cyber-primary/20 rounded px-3 py-2"
+                />
+              </div>
+            )}
+            {repeatFrequency !== 'NONE' && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={isIndefinite}
+                  onChange={(e) => setIsIndefinite(e.target.checked)}
+                  className="bg-cyber-dark-secondary border border-cyber-primary/20 rounded"
+                />
+                <label className="text-sm text-cyber-text/70">Repeat indefinitely</label>
+              </div>
+            )}
+            <div>
+              <label className="block text-sm text-cyber-text/70 mb-1">Notes</label>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="w-full bg-cyber-dark-secondary text-cyber-text border border-cyber-primary/20 rounded px-3 py-2"
+                rows={3}
+              />
             </div>
-          </div>
-        </div>
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full bg-cyber-primary text-black py-2 rounded hover:bg-cyber-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? 'Adding Schedule...' : 'Add Schedule'}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleEventSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm text-cyber-text/70 mb-1">Event Title</label>
+              <input
+                type="text"
+                value={eventTitle}
+                onChange={(e) => setEventTitle(e.target.value)}
+                className="w-full bg-cyber-dark-secondary text-cyber-text border border-cyber-primary/20 rounded px-3 py-2"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-cyber-text/70 mb-1">Start Date</label>
+              <input
+                type="date"
+                value={eventStartDate}
+                onChange={(e) => setEventStartDate(e.target.value)}
+                className="w-full bg-cyber-dark-secondary text-cyber-text border border-cyber-primary/20 rounded px-3 py-2"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-cyber-text/70 mb-1">End Date</label>
+              <input
+                type="date"
+                value={eventEndDate}
+                onChange={(e) => setEventEndDate(e.target.value)}
+                className="w-full bg-cyber-dark-secondary text-cyber-text border border-cyber-primary/20 rounded px-3 py-2"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-cyber-text/70 mb-1">Calendar Color</label>
+              <input
+                type="color"
+                value={eventColor}
+                onChange={(e) => setEventColor(e.target.value)}
+                className="w-full h-10 bg-cyber-dark-secondary border border-cyber-primary/20 rounded px-1"
+              />
+            </div>
+            <button
+              type="submit"
+              className="w-full bg-cyber-primary text-black py-2 rounded hover:bg-cyber-primary/90 transition-colors"
+            >
+              Add Event
+            </button>
+          </form>
+        )}
       </div>
-
-      <VisitorLog />
     </div>
   );
 };
